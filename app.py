@@ -26,7 +26,7 @@ except Exception as e:
 # 3. FUNKCE PRO PROHLEDÁVÁNÍ SLOŽKY NA DISKU
 def get_manuals_context():
     # Zde vložte ID vaší složky 01_ZDROJOVA_DATA (z URL adresy na Disku)
-    FOLDER_ID = "1t8NQCKe97xP2Xq0KCQZft_J3Wvjgkv-1" 
+    FOLDER_ID = "ecbf09896c3c17476ab631f923a47917fa5830af" 
     
     try:
         results = drive_service.files().list(
