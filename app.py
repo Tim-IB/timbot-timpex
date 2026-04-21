@@ -6,27 +6,32 @@ from googleapiclient.http import MediaIoBaseDownload
 import io
 from pypdf import PdfReader
 
-# 1. ZÁKLADNÍ NASTAVENÍ A VZHLED TIMPEX
+# 1. KONFIGURACE STRÁNKY A VZHLED
 st.set_page_config(page_title="TimBot Servis", page_icon="🔧")
 st.markdown("<h1 style='text-align: center; color: #0054a6;'>🔧 TimBot: Seniorní Asistent Timpex</h1>", unsafe_allow_html=True)
 
-# 2. PŘIPOJENÍ KE GOOGLE SLUŽBÁM (Používá Secrets ze Streamlitu)
+# 2. BEZPEČNÉ NAČTENÍ KLÍČŮ (OPRAVENO PRO PEM CHYBU)
 try:
-    # Načtení klíčů
-    creds_info = st.secrets["google_cloud"]
+    # Načtení informací ze Streamlit Secrets
+    creds_info = dict(st.secrets["google_cloud"])
+    
+    # OPRAVA: Převedení textových značek \n na skutečné konce řádků
+    if "private_key" in creds_info:
+        creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
+        
+    # Inicializace Google Drive a Gemini
     creds = service_account.Credentials.from_service_account_info(creds_info)
     drive_service = build('drive', 'v3', credentials=creds)
-    
-    # Konfigurace Gemini
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    
 except Exception as e:
-    st.error(f"Chyba v nastavení klíčů: {e}")
+    st.error(f"⚠️ Chyba v konfiguraci klíčů: {e}")
     st.stop()
 
-# 3. FUNKCE PRO PROHLEDÁVÁNÍ SLOŽKY NA DISKU
+# 3. FUNKCE PRO ZÍSKÁNÍ DAT Z DISKU
 def get_manuals_context():
-    # Zde vložte ID vaší složky 01_ZDROJOVA_DATA (z URL adresy na Disku)
-    FOLDER_ID = "ecbf09896c3c17476ab631f923a47917fa5830af" 
+    # ID VAŠÍ SLOŽKY 01_ZDROJOVA_DATA (zkopírujte z adresy v prohlížeči)
+    FOLDER_ID = "1p0G8055E9W8M7j7qN8z_zG_G9U8eM9U8" # <--- SEM VLOŽTE SVÉ ID (toto je příklad)
     
     try:
         results = drive_service.files().list(
@@ -36,7 +41,7 @@ def get_manuals_context():
         files = results.get('files', [])
         
         if not files:
-            return "V zadané složce nebyly nalezeny žádné PDF manuály."
+            return "V zadané složce na Disku nebyly nalezeny žádné PDF manuály."
 
         full_text = ""
         for file in files:
@@ -47,41 +52,33 @@ def get_manuals_context():
             while done is False:
                 status, done = downloader.next_chunk()
             
-            # Čtení obsahu PDF
             reader = PdfReader(fh)
-            file_content = f"\n--- MANUÁL: {file['name']} ---\n"
+            full_text += f"\n--- MANUÁL: {file['name']} ---\n"
             for page in reader.pages:
-                file_content += page.extract_text() + "\n"
-            full_text += file_content
-            
+                full_text += page.extract_text() + "\n"
         return full_text
     except Exception as e:
-        return f"Chyba při čtení Disku: {e}"
+        return f"Chyba při čtení Google Disku: {e}"
 
-# 4. CHAT A LOGIKA ODPOVĚDÍ
-SYSTEM_PROMPT = """Jsi Seniorní servisní asistent Timpex. Tvým úkolem je pomáhat technikům v terénu.
-ZÁSADNÍ PRAVIDLA:
-1. Odpovídej VÝHRADNĚ na základě poskytnutých manuálů v KONTEXTU.
-2. Piš telegraficky, stručně a v odrážkách.
-3. Všechny číselné hodnoty (napětí, odpor, tlak, teploty) piš vždy TUČNĚ.
-4. Pokud se dotaz týká opravy, první bod musí být VŽDY: "Odpojit od sítě 230V!".
-5. Pokud uživatel neuvede model regulace (ECO, REG, TimNet), nejdříve se na něj zeptej.
-6. U každé rady uveď na konci: Zdroj: [Název souboru], strana [X].
-7. Pokud informaci v manuálu nenajdeš, napiš: 'Lituji, v dostupných manuálech jsem tuto informaci nenalezl.'"""
+# 4. INSTRUKCE PRO MOZEK AI (SYSTEM PROMPT)
+SYSTEM_PROMPT = """Jsi Seniorní servisní asistent Timpex. Odpovídej VÝHRADNĚ z manuálů.
+PRAVIDLA PRO ODPOVĚĎ:
+1. První bod u oprav: "Odpojit od sítě 230V!".
+2. Piš stručně v odrážkách.
+3. Všechny číselné hodnoty (napětí, odpor, tlak) piš TUČNĚ.
+4. Pokud nevíš model (ECO, REG, TimNet), zeptej se na něj.
+5. Uveď vždy Zdroj: [Název souboru], strana [X]."""
 
+# 5. UŽIVATELSKÉ ROZHRANÍ (UI)
 query = st.text_input("Zadejte kód chyby nebo dotaz (např. chyba E01 u ECO100):")
 
 if st.button("Odeslat dotaz"):
     if query:
         with st.spinner("Prohledávám technickou dokumentaci Timpex..."):
-            # 1. Získání textu z PDF na Disku
             context = get_manuals_context()
-            
-            # 2. Sestavení dotazu pro Gemini
             model = genai.GenerativeModel('gemini-1.5-flash')
-            full_prompt = f"{SYSTEM_PROMPT}\n\nKONTEXT Z MANUÁLŮ:\n{context}\n\nDOTAZ TECHNIKA: {query}"
+            full_prompt = f"{SYSTEM_PROMPT}\n\nKONTEXT Z MANUÁLŮ:\n{context}\n\nDOTAZ: {query}"
             
-            # 3. Generování odpovědi
             response = model.generate_content(full_prompt)
             
             st.markdown("### Odpověď asistenta:")
