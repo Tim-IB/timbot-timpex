@@ -31,7 +31,7 @@ except Exception as e:
 # 3. FUNKCE PRO ZÍSKÁNÍ DAT Z DISKU
 def get_manuals_context():
     # ID VAŠÍ SLOŽKY 01_ZDROJOVA_DATA (zkopírujte z adresy v prohlížeči)
-    FOLDER_ID = "1p0G8055E9W8M7j7qN8z_zG_G9U8eM9U8" # <--- SEM VLOŽTE SVÉ ID (toto je příklad)
+    FOLDER_ID = "1t8NQCKe97xP2Xq0KCQZft_J3Wvjgkv-1" # <--- SEM VLOŽTE SVÉ ID (toto je příklad)
     
     try:
         results = drive_service.files().list(
