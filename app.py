@@ -16,8 +16,7 @@ try:
     creds_info = dict(st.secrets["google_cloud"])
     
     # OPRAVA: Převedení textových značek \n na skutečné konce řádků
-    if "private_key" in creds_info:
-        creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
+    creds_info["private_key"] = st.secrets["google_cloud"]["private_key"]
         
     # Inicializace Google Drive a Gemini
     creds = service_account.Credentials.from_service_account_info(creds_info)
