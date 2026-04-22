@@ -15,24 +15,17 @@ try:
     # Načtení informací ze Streamlit Secrets
     creds_info = dict(st.secrets["google_cloud"])
     
-    # OPRAVA: Převedení textových značek \n na skutečné konce řádků
-# Inteligentní oprava certifikátu (rozsekání textu na správné řádky)
-        pk = st.secrets["google_cloud"]["private_key"]
-        pk = pk.replace("\\n", "\n")
-        if "-----BEGIN PRIVATE KEY-----" in pk and "\n" not in pk.replace("-----BEGIN PRIVATE KEY-----", ""):
-            header = "-----BEGIN PRIVATE KEY-----"
-            footer = "-----END PRIVATE KEY-----"
-            content = pk.replace(header, "").replace(footer, "").replace("\n", "").strip()
-            # Rozsekáme text po 64 znacích, což Google striktně vyžaduje
-            lines = [content[i:i+64] for i in range(0, len(content), 64)]
-            pk = header + "\n" + "\n".join(lines) + "\n" + footer + "\n"
-        creds_info["private_key"] = pk
-        
-    # Inicializace Google Drive a Gemini
+    pk = st.secrets["google_cloud"]["private_key"].replace("\\n", "\n")
+    header = "-----BEGIN PRIVATE KEY-----"
+    footer = "-----END PRIVATE KEY-----"
+    content = pk.replace(header, "").replace(footer, "").replace("\n", "").strip()
+    lines = [content[i:i+64] for i in range(0, len(content), 64)]
+    creds_info["private_key"] = header + "\n" + "\n".join(lines) + "\n" + footer + "\n"
+
     creds = service_account.Credentials.from_service_account_info(creds_info)
     drive_service = build('drive', 'v3', credentials=creds)
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    
+ 
 except Exception as e:
     st.error(f"⚠️ Chyba v konfiguraci klíčů: {e}")
     st.stop()
