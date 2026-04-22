@@ -76,7 +76,7 @@ if st.button("Odeslat dotaz"):
     if query:
         with st.spinner("Prohledávám technickou dokumentaci Timpex..."):
             context = get_manuals_context()
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-3-flash')
             full_prompt = f"{SYSTEM_PROMPT}\n\nKONTEXT Z MANUÁLŮ:\n{context}\n\nDOTAZ: {query}"
             
             response = model.generate_content(full_prompt)
