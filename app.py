@@ -4,40 +4,57 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import re
 
+# Nastavení stránky
 st.set_page_config(page_title="TimBot", layout="centered")
 st.title("🤖 TimBot")
 
-def get_clean_key(raw_key):
-    # Vyhodíme hlavičky a konce řádků
-    clean = raw_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
-    # Vyhodíme všechno kromě písmen, čísel a znaků + / = (základ Base64)
-    clean = re.sub(r'[^A-Za-z0-9+/=]', '', clean)
-    
-    # OPRAVA DÉLKY (ta chyba 1625): Pokud chybí padding (=), doplníme ho
-    while len(clean) % 4 != 0:
-        clean += "="
+@st.cache_resource
+def init_services():
+    try:
+        # 1. Načtení dat ze Streamlit Secrets
+        creds_info = dict(st.secrets["google_cloud"])
+        raw_key = creds_info["private_key"]
         
-    # Sestavíme PEM formát (64 znaků na řádek)
-    lines = [clean[i:i+64] for i in range(0, len(clean), 64)]
-    return "-----BEGIN PRIVATE KEY-----\n" + "\n".join(lines) + "\n-----END PRIVATE KEY-----\n"
+        # 2. OČIŠTĚNÍ KLÍČE (odstraníme všechno smetí, co způsobuje chybu 1625)
+        # Vyndáme čistý kód mezi hlavičkou a patičkou
+        clean_key = raw_key.replace("-----BEGIN PRIVATE KEY-----", "")
+        clean_key = clean_key.replace("-----END PRIVATE KEY-----", "")
+        # Odstraníme konce řádků, mezery a uvozovky, které tam Streamlit mohl nechat
+        clean_key = re.sub(r'\s+', '', clean_key).strip()
+        
+        # 3. REKONSTRUKCE (Google vyžaduje zalomení po 64 znacích)
+        formatted_key = "-----BEGIN PRIVATE KEY-----\n"
+        for i in range(0, len(clean_key), 64):
+            formatted_key += clean_key[i:i+64] + "\n"
+        formatted_key += "-----END PRIVATE KEY-----\n"
+        
+        creds_info["private_key"] = formatted_key
 
-try:
-    # Načtení informací ze Streamlitu
-    creds_info = dict(st.secrets["google_cloud"])
-    creds_info["private_key"] = get_clean_key(creds_info["private_key"])
-    
-    # Inicializace
-    creds = service_account.Credentials.from_service_account_info(creds_info)
-    drive_service = build('drive', 'v3', credentials=creds)
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    
-    st.success("✅ TimBot je v pořádku připojen.")
-    
-    if prompt := st.chat_input("Zeptejte se na manuály:"):
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(f"Jsi asistent Timpex. Odpověz: {prompt}")
-        st.chat_message("assistant").write(response.text)
+        # 4. Přihlášení ke službám
+        creds = service_account.Credentials.from_service_account_info(creds_info)
+        drive_service = build('drive', 'v3', credentials=creds)
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        
+        return drive_service
+    except Exception as e:
+        st.error(f"Chyba při startu: {str(e)}")
+        return None
 
-except Exception as e:
-    st.error(f"Omlouvám se, stále je tu problém: {str(e)}")
-    st.info("💡 Tip: Zkuste v Secrets v Streamlitu smazat klíč a vložit ho znovu, možná se tam opravdu vloudila mezera.")
+# Spuštění botu
+drive_service = init_services()
+
+if drive_service:
+    st.success("✅ TimBot je online a připraven.")
+    if prompt := st.chat_input("Zeptejte se na manuály Timpex:"):
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        with st.chat_message("assistant"):
+            try:
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                response = model.generate_content(f"Jsi asistent Timpex. Odpověz na: {prompt}")
+                st.markdown(response.text)
+            except Exception as e:
+                st.error(f"Chyba Gemini: {e}")
+else:
+    st.warning("Aplikace čeká na správné nastavení Secrets.")
