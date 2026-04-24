@@ -1,80 +1,46 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import json
 
-# --- 1. ZÁKLADNÍ NASTAVENÍ STRÁNKY ---
-st.set_page_config(page_title="TimBot - Expertní rádce Timpex", layout="centered")
-
-# Skrytí menu Streamlitu pro profesionálnější vzhled
-hide_style = """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_style, unsafe_allow_html=True)
-
+st.set_page_config(page_title="TimBot 2026", layout="centered")
 st.title("🤖 TimBot")
-st.caption("Verze 1.0 | Připojen k manuálům Timpex")
 
-# --- 2. INICIALIZACE SLUŽEB (Google Drive & Gemini) ---
 @st.cache_resource
-def init_all_services():
+def init_services():
     try:
-        # Načtení JSON balíčku ze Streamlit Secrets
+        # 1. Google Drive (zůstává stejné)
         service_info = json.loads(st.secrets["GOOGLE_JSON_BLOB"])
-        
-        # Přihlášení ke Google Drive
         creds = service_account.Credentials.from_service_account_info(service_info)
         drive_service = build('drive', 'v3', credentials=creds)
         
-        # Konfigurace Gemini AI
-        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        # 2. Gemini (NOVÝ ZPŮSOB pro rok 2026)
+        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
         
-        return drive_service
+        return drive_service, client
     except Exception as e:
-        st.error(f"Nepodařilo se nastartovat služby: {str(e)}")
-        return None
+        st.error(f"Chyba při startu: {str(e)}")
+        return None, None
 
-drive_service = init_all_services()
+drive_service, gemini_client = init_services()
 
-# --- 3. LOGIKA CHATU ---
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": "Dobrý den! Jsem TimBot. Jak vám mohu pomoci s manuály nebo technickými dotazy Timpex?"}
-    ]
-
-# Zobrazení historie chatu
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# Vstup od uživatele
-if prompt := st.chat_input("Zadejte svůj dotaz..."):
-    # Přidání dotazu uživatele do historie
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    # Generování odpovědi od Gemini
-    with st.chat_message("assistant"):
-        if drive_service:
+if gemini_client:
+    st.success("✅ TimBot je online (v1.5 Flash 2026)")
+    
+    if prompt := st.chat_input("Zeptejte se na Timpex:"):
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        with st.chat_message("assistant"):
             try:
-                # Použití modelu Gemini 1.5 Flash
-                model = genai.GenerativeModel('gemini-1.5-flash-latest')
-                
-                # Zatím odpovídáme přímo (v dalším kroku propojíme čtení PDF z Drive)
-                full_prompt = f"Jsi technický asistent pro produkty firmy Timpex. Odpovídej věcně a srozumitelně. Dotaz: {prompt}"
-                
-                response = model.generate_content(full_prompt)
-                answer = response.text
-                
-                st.markdown(answer)
-                st.session_state.messages.append({"role": "assistant", "content": answer})
+                # Volání moderního modelu gemini-1.5-flash (nebo gemini-2.0-flash)
+                response = gemini_client.models.generate_content(
+                    model='gemini-1.5-flash', 
+                    contents=prompt
+                )
+                st.markdown(response.text)
             except Exception as e:
-                error_msg = f"Chyba při generování odpovědi: {str(e)}"
-                st.error(error_msg)
-        else:
-            st.warning("Systém není správně připojen ke Google službám.")
+                st.error(f"Chyba komunikace s AI: {str(e)}")
+else:
+    st.error("Nepodařilo se připojit. Zkontrolujte logy.")
