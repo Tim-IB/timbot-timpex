@@ -63,7 +63,7 @@ if prompt := st.chat_input("Zadejte svůj dotaz..."):
         if drive_service:
             try:
                 # Použití modelu Gemini 1.5 Flash
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                model = genai.GenerativeModel('gemini-1.5-flash-latest')
                 
                 # Zatím odpovídáme přímo (v dalším kroku propojíme čtení PDF z Drive)
                 full_prompt = f"Jsi technický asistent pro produkty firmy Timpex. Odpovídej věcně a srozumitelně. Dotaz: {prompt}"
